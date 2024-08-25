@@ -13,6 +13,6 @@ fn main() {
     let mut segments = input.split_whitespace();
 
     match segments.next() {
-        x => println!("{:#?} command not found", x.unwrap()),
+        x => println!("{}: command not found", x.unwrap()),
     }
 }
