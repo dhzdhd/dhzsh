@@ -1,6 +1,48 @@
-#[allow(unused_imports)]
+use std::ffi::OsString;
 use std::io::{self, Write};
-use std::process::exit;
+use std::{collections::HashMap, env, path::PathBuf, process::exit};
+
+use lazy_static::lazy_static;
+
+lazy_static! {
+    #[derive(Debug)]
+    static ref COMMAND_MAP: HashMap<OsString, PathBuf> = {
+        let mut map = HashMap::new();
+
+        if let Ok(paths) = get_env_paths() {
+            for path in paths {
+                if let Ok(dir) = path.read_dir() {
+                    for dir_entry in dir {
+                        if let Ok(file) = dir_entry {
+                            let file_path = file.path().clone();
+                            let file_name = file_path.file_name().unwrap();
+                            let file_ext = file_path.extension();
+
+                            if let Some(ext) = file_ext {
+                                if ext == "exe" {
+                                    map.insert(file_name.to_os_string(), path.clone());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        map
+    };
+}
+
+fn get_env_paths() -> Result<Vec<PathBuf>, env::VarError> {
+    return env::var("PATH").map(|raw_paths| {
+        let paths = raw_paths.clone();
+
+        let vec = paths
+            .split(";")
+            .map(PathBuf::from)
+            .collect::<Vec<PathBuf>>();
+        vec
+    });
+}
 
 fn main() {
     loop {
@@ -42,6 +84,12 @@ fn main() {
                         match name.trim() {
                             x if BUILTINS.contains(&x) => {
                                 println!("{} is a shell builtin", x)
+                            }
+                            x if COMMAND_MAP.contains_key(&OsString::from(x)) => {
+                                println!(
+                                    "{x} is {}",
+                                    COMMAND_MAP.get(&OsString::from(x)).unwrap().display()
+                                )
                             }
                             x => println!("{}: not found", x),
                         }
