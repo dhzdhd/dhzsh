@@ -1,12 +1,13 @@
-use std::ffi::OsString;
 use std::io::{self, Write};
+use std::os::windows::process;
+use std::process::Command;
 use std::{collections::HashMap, env, path::PathBuf, process::exit};
 
 use lazy_static::lazy_static;
 
 lazy_static! {
     #[derive(Debug)]
-    static ref COMMAND_MAP: HashMap<OsString, PathBuf> = {
+    static ref COMMAND_MAP: HashMap<String, PathBuf> = {
         let mut map = HashMap::new();
 
         if let Ok(paths) = get_env_paths() {
@@ -20,7 +21,9 @@ lazy_static! {
 
                             if let Some(ext) = file_ext {
                                 if ext == "exe" {
-                                    map.insert(file_name.to_os_string(), path.clone());
+                                    let ext_str = ext.to_os_string().into_string().unwrap();
+                                    let file_name_str = file_name.to_os_string().into_string().unwrap().replace(format!(".{ext_str}").as_str(), "");
+                                    map.insert(file_name_str, path.clone());
                                 }
                             }
                         }
@@ -85,16 +88,23 @@ fn main() {
                             x if BUILTINS.contains(&x) => {
                                 println!("{} is a shell builtin", x)
                             }
-                            x if COMMAND_MAP.contains_key(&OsString::from(x)) => {
-                                println!(
-                                    "{x} is {}",
-                                    COMMAND_MAP.get(&OsString::from(x)).unwrap().display()
-                                )
+                            x if COMMAND_MAP.contains_key(x) => {
+                                println!("{x} is {}", COMMAND_MAP.get(x).unwrap().display())
                             }
                             x => println!("{}: not found", x),
                         }
                     } else {
                         println!("Command not specified")
+                    }
+                }
+                x if COMMAND_MAP.contains_key(x) => {
+                    match Command::new(x).arg(segments.get(1).unwrap_or(&"")).output() {
+                        Ok(res) => println!(
+                            "Stdout - {:?}\nStderr - {:?}",
+                            String::from_utf8(res.stdout).unwrap_or("None".to_owned()),
+                            String::from_utf8(res.stderr).unwrap_or("None".to_owned())
+                        ),
+                        Err(_err) => println!("Failed to run process"),
                     }
                 }
                 x => println!("{}: command not found", x),
