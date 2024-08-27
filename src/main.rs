@@ -98,12 +98,23 @@ fn main() {
                     }
                 }
                 x if COMMAND_MAP.contains_key(x) => {
-                    match Command::new(x).arg(segments.get(1).unwrap_or(&"")).output() {
-                        Ok(res) => println!(
-                            "Stdout - {:?}\nStderr - {:?}",
-                            String::from_utf8(res.stdout).unwrap_or("None".to_owned()),
-                            String::from_utf8(res.stderr).unwrap_or("None".to_owned())
-                        ),
+                    match Command::new(x)
+                        .arg(segments.get(1).unwrap_or(&"").trim())
+                        .output()
+                    {
+                        Ok(res) => {
+                            if res.stdout != [] {
+                                println!(
+                                    "{}",
+                                    String::from_utf8(res.stdout).unwrap_or("None".to_owned()),
+                                )
+                            } else {
+                                println!(
+                                    "{}",
+                                    String::from_utf8(res.stderr).unwrap_or("None".to_owned())
+                                )
+                            }
+                        }
                         Err(_err) => println!("Failed to run process"),
                     }
                 }
