@@ -1,4 +1,4 @@
-use std::env::current_dir;
+use std::env::{current_dir, set_current_dir};
 use std::fs;
 use std::io::{self, Write};
 
@@ -7,6 +7,7 @@ use std::{collections::HashMap, env, path::PathBuf, process::exit};
 
 use lazy_static::lazy_static;
 use serde::Deserialize;
+use simple_home_dir::home_dir;
 
 #[derive(Deserialize)]
 struct Config {
@@ -23,7 +24,11 @@ impl Default for Config {
 
 lazy_static! {
     static ref CONFIG: Config = {
-        let toml = fs::read_to_string("shell.conf.toml").unwrap_or(String::new());
+        let toml = fs::read_to_string("shell.conf.toml").unwrap_or_else(|_|
+            {
+                println!("Failed to read TOML file");
+                String::new()
+            });
         toml::from_str(toml.as_str()).unwrap_or_default()
     };
 
@@ -70,15 +75,30 @@ fn get_env_paths() -> Result<Vec<PathBuf>, env::VarError> {
 
 fn change_directory(path: &str) {
     match path {
-        "~" => {}
+        "~" => {
+            match set_current_dir(home_dir().unwrap_or(PathBuf::new())) {
+                Ok(_) => (),
+                Err(_) => println!("Could not find home directory"),
+            };
+        }
+        "-" => {}
         x if x.starts_with(".") => {}
-        x => {}
+        x => {
+            match set_current_dir(x) {
+                Ok(_) => (),
+                Err(_) => println!("Could not find specified directory: {x}"),
+            };
+        }
     }
 }
 
 fn main() {
     loop {
-        print!("{} ", CONFIG.glyph);
+        print!(
+            "{} {}> ",
+            CONFIG.glyph,
+            current_dir().unwrap_or(PathBuf::new()).display()
+        );
         io::stdout().flush().unwrap();
 
         // Wait for user input
@@ -89,7 +109,7 @@ fn main() {
         let segments = input.splitn(2, " ").collect::<Vec<&str>>();
         let command_opt = segments.first();
 
-        const BUILTINS: [&str; 3] = ["exit", "echo", "type"];
+        const BUILTINS: [&str; 5] = ["exit", "echo", "type", "pwd", "cd"];
 
         if let Some(command) = command_opt {
             match command.trim() {
@@ -131,7 +151,7 @@ fn main() {
                     Err(_err) => println!("Unable to get current directory"),
                 },
                 "cd" => {
-                    let path = segments.get(1).unwrap_or(&"");
+                    let path = segments.get(1).unwrap_or(&"").trim();
                     change_directory(path)
                 }
                 x if COMMAND_MAP.contains_key(x) => {
