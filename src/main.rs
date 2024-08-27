@@ -1,11 +1,32 @@
+use std::env::current_dir;
+use std::fs;
 use std::io::{self, Write};
-use std::os::windows::process;
+
 use std::process::Command;
 use std::{collections::HashMap, env, path::PathBuf, process::exit};
 
 use lazy_static::lazy_static;
+use serde::Deserialize;
+
+#[derive(Deserialize)]
+struct Config {
+    glyph: String,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            glyph: "$".to_owned(),
+        }
+    }
+}
 
 lazy_static! {
+    static ref CONFIG: Config = {
+        let toml = fs::read_to_string("shell.conf.toml").unwrap_or(String::new());
+        toml::from_str(toml.as_str()).unwrap_or_default()
+    };
+
     #[derive(Debug)]
     static ref COMMAND_MAP: HashMap<String, PathBuf> = {
         let mut map = HashMap::new();
@@ -47,9 +68,17 @@ fn get_env_paths() -> Result<Vec<PathBuf>, env::VarError> {
     });
 }
 
+fn change_directory(path: &str) {
+    match path {
+        "~" => {}
+        x if x.starts_with(".") => {}
+        x => {}
+    }
+}
+
 fn main() {
     loop {
-        print!("$ ");
+        print!("{} ", CONFIG.glyph);
         io::stdout().flush().unwrap();
 
         // Wait for user input
@@ -96,6 +125,14 @@ fn main() {
                     } else {
                         println!("Command not specified")
                     }
+                }
+                "pwd" => match current_dir() {
+                    Ok(dir) => println!("{}", dir.display()),
+                    Err(_err) => println!("Unable to get current directory"),
+                },
+                "cd" => {
+                    let path = segments.get(1).unwrap_or(&"");
+                    change_directory(path)
                 }
                 x if COMMAND_MAP.contains_key(x) => {
                     match Command::new(x)
