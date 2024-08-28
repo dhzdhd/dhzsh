@@ -23,6 +23,20 @@ impl Default for Config {
     }
 }
 
+struct State {
+    dir_stack: Vec<PathBuf>,
+}
+
+impl State {
+    fn push_dir(&mut self, dir: PathBuf) {
+        self.dir_stack.push(dir)
+    }
+
+    fn pop_dir(&mut self) -> Option<PathBuf> {
+        self.dir_stack.pop()
+    }
+}
+
 lazy_static! {
     static ref CONFIG: Config = {
         let toml = fs::read_to_string("shell.conf.toml").unwrap_or_else(|_|
@@ -74,19 +88,27 @@ fn get_env_paths() -> Result<Vec<PathBuf>, env::VarError> {
     });
 }
 
-fn change_directory(path: &str) {
+fn change_directory(state: &mut State, path: &str) {
     match path {
         "~" => {
             match set_current_dir(home_dir().unwrap_or(PathBuf::new())) {
-                Ok(_) => (),
+                Ok(_) => state.push_dir(home_dir().unwrap()),
                 Err(_) => println!("Could not find home directory"),
             };
         }
-        "-" => {}
+        "-" => {
+            state.pop_dir();
+            if let Some(prev_dir) = state.pop_dir() {
+                match set_current_dir(prev_dir) {
+                    Ok(_) => (),
+                    Err(_) => println!("Could not find home directory"),
+                };
+            }
+        }
         x if x.starts_with(".") => {}
         x => {
             match set_current_dir(x) {
-                Ok(_) => (),
+                Ok(_) => state.push_dir(PathBuf::from(x)),
                 Err(_) => println!("Could not find specified directory: {x}"),
             };
         }
@@ -94,15 +116,39 @@ fn change_directory(path: &str) {
 }
 
 fn main() {
+    let mut state = State {
+        dir_stack: Vec::new(),
+    };
+
     loop {
+        let branch = Command::new("git")
+            .arg("branch")
+            .output()
+            .ok()
+            .map(|opt| {
+                if opt.stdout != [] {
+                    Some(opt.stdout)
+                } else {
+                    None
+                }
+            })
+            .flatten()
+            .map(|vec| String::from_utf8(vec).ok())
+            .flatten();
+
         print!(
-            "{}\n{} ",
+            "{} {}\n{} ",
             current_dir()
                 .unwrap_or(PathBuf::new())
                 .display()
                 .to_string()
                 .cyan()
                 .bold(),
+            if let Some(str) = branch {
+                format!("on {}", str.trim().magenta())
+            } else {
+                "".to_owned()
+            },
             CONFIG.glyph.green(),
         );
         io::stdout().flush().unwrap();
@@ -159,7 +205,7 @@ fn main() {
                 },
                 "cd" => {
                     let path = segments.get(1).unwrap_or(&"").trim();
-                    change_directory(path)
+                    change_directory(&mut state, path)
                 }
                 x if COMMAND_MAP.contains_key(x) => {
                     match Command::new(x)
