@@ -5,6 +5,7 @@ use std::io::{self, Write};
 use std::process::Command;
 use std::{collections::HashMap, env, path::PathBuf, process::exit};
 
+use colored::Colorize;
 use lazy_static::lazy_static;
 use serde::Deserialize;
 use simple_home_dir::home_dir;
@@ -95,9 +96,14 @@ fn change_directory(path: &str) {
 fn main() {
     loop {
         print!(
-            "{} {}> ",
-            CONFIG.glyph,
-            current_dir().unwrap_or(PathBuf::new()).display()
+            "{}\n{} ",
+            current_dir()
+                .unwrap_or(PathBuf::new())
+                .display()
+                .to_string()
+                .cyan()
+                .bold(),
+            CONFIG.glyph.green(),
         );
         io::stdout().flush().unwrap();
 
@@ -113,15 +119,16 @@ fn main() {
 
         if let Some(command) = command_opt {
             match command.trim() {
+                "" => {}
                 "exit" => {
                     let code_opt = segments.get(1);
                     if let Some(code) = code_opt {
                         match code {
                             x if x.parse::<i32>().is_ok() => exit(x.parse::<i32>().unwrap()),
-                            _ => println!("Invalid exit code"),
+                            _ => println!("{}", "Invalid exit code".red()),
                         }
                     } else {
-                        println!("Code not specified")
+                        println!("{}", "Code not specified".red())
                     }
                 }
                 "echo" => {
@@ -140,15 +147,15 @@ fn main() {
                             x if COMMAND_MAP.contains_key(x) => {
                                 println!("{x} is {}", COMMAND_MAP.get(x).unwrap().display())
                             }
-                            x => println!("{}: not found", x),
+                            x => println!("{}{}", x.red(), ": not found".red()),
                         }
                     } else {
-                        println!("Command not specified")
+                        println!("{}", "Command not specified".red())
                     }
                 }
                 "pwd" => match current_dir() {
                     Ok(dir) => println!("{}", dir.display()),
-                    Err(_err) => println!("Unable to get current directory"),
+                    Err(_err) => println!("{}", "Unable to get current directory".red()),
                 },
                 "cd" => {
                     let path = segments.get(1).unwrap_or(&"").trim();
@@ -168,15 +175,19 @@ fn main() {
                             } else {
                                 println!(
                                     "{}",
-                                    String::from_utf8(res.stderr).unwrap_or("None".to_owned())
+                                    String::from_utf8(res.stderr)
+                                        .unwrap_or("None".to_owned())
+                                        .red()
                                 )
                             }
                         }
-                        Err(_err) => println!("Failed to run process"),
+                        Err(_err) => println!("{}", "Failed to run process".red()),
                     }
                 }
-                x => println!("{}: command not found", x),
+                x => println!("{}{}", x.red(), ": command not found".red()),
             }
         }
+
+        println!("")
     }
 }
