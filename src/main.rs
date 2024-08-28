@@ -117,7 +117,11 @@ fn change_directory(state: &mut State, path: &str) {
 
 fn main() {
     let mut state = State {
-        dir_stack: Vec::new(),
+        dir_stack: if let Ok(dir) = current_dir() {
+            vec![dir]
+        } else {
+            Vec::new()
+        },
     };
 
     loop {
