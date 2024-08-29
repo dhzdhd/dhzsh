@@ -24,16 +24,24 @@ impl Default for Config {
 }
 
 struct State {
-    dir_stack: Vec<PathBuf>,
+    dir_arr: Vec<PathBuf>,
+    dir_ptr: usize,
 }
 
 impl State {
     fn push_dir(&mut self, dir: PathBuf) {
-        self.dir_stack.push(dir)
+        self.dir_arr.push(dir);
+        self.dir_ptr += 1;
     }
 
-    fn pop_dir(&mut self) -> Option<PathBuf> {
-        self.dir_stack.pop()
+    fn get_dir(&mut self, offset: isize) -> Option<&PathBuf> {
+        let new_ptr = self.dir_ptr as isize + offset;
+        if new_ptr >= 0 {
+            self.dir_ptr = new_ptr as usize;
+            self.dir_arr.get(self.dir_ptr)
+        } else {
+            None
+        }
     }
 }
 
@@ -41,7 +49,7 @@ lazy_static! {
     static ref CONFIG: Config = {
         let toml = fs::read_to_string("shell.conf.toml").unwrap_or_else(|_|
             {
-                println!("Failed to read TOML file");
+                println!("Failed to read TOML file. Reverting to defaults.");
                 String::new()
             });
         toml::from_str(toml.as_str()).unwrap_or_default()
@@ -97,11 +105,10 @@ fn change_directory(state: &mut State, path: &str) {
             };
         }
         "-" => {
-            state.pop_dir();
-            if let Some(prev_dir) = state.pop_dir() {
-                match set_current_dir(prev_dir) {
+            if let Some(path) = state.get_dir(-1) {
+                match set_current_dir(path) {
                     Ok(_) => (),
-                    Err(_) => println!("Could not find home directory"),
+                    Err(_) => println!("Could find previous directory"),
                 };
             }
         }
@@ -117,14 +124,16 @@ fn change_directory(state: &mut State, path: &str) {
 
 fn main() {
     let mut state = State {
-        dir_stack: if let Ok(dir) = current_dir() {
+        dir_arr: if let Ok(dir) = current_dir() {
             vec![dir]
         } else {
             Vec::new()
         },
+        dir_ptr: 0,
     };
 
     loop {
+        // Get git branch info
         let branch = Command::new("git")
             .arg("branch")
             .output()
@@ -140,14 +149,14 @@ fn main() {
             .map(|vec| String::from_utf8(vec).ok())
             .flatten();
 
+        // Print prompt glyph and directory
         print!(
             "{} {}\n{} ",
             current_dir()
                 .unwrap_or(PathBuf::new())
                 .display()
                 .to_string()
-                .cyan()
-                .bold(),
+                .cyan(),
             if let Some(str) = branch {
                 format!("on {}", str.trim().magenta())
             } else {
@@ -187,7 +196,7 @@ fn main() {
                         println!("{}", text.trim())
                     }
                 }
-                "type" => {
+                "type" | "where" => {
                     let name_opt = segments.get(1);
                     if let Some(name) = name_opt {
                         match name.trim() {
