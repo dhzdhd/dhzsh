@@ -101,22 +101,28 @@ fn change_directory(state: &mut State, path: &str) {
         "~" => {
             match set_current_dir(home_dir().unwrap_or(PathBuf::new())) {
                 Ok(_) => state.push_dir(home_dir().unwrap()),
-                Err(_) => println!("Could not find home directory"),
+                Err(_) => println!("{}", "Could not find home directory".red()),
             };
         }
         "-" => {
             if let Some(path) = state.get_dir(-1) {
                 match set_current_dir(path) {
                     Ok(_) => (),
-                    Err(_) => println!("Could find previous directory"),
+                    Err(_) => println!("{}", "Could find previous directory".red()),
                 };
             }
         }
-        x if x.starts_with(".") => {}
+        x if x.starts_with(".") => {
+            println!("{}", "Not implemented yet".red())
+        }
         x => {
             match set_current_dir(x) {
                 Ok(_) => state.push_dir(PathBuf::from(x)),
-                Err(_) => println!("Could not find specified directory: {x}"),
+                Err(_) => println!(
+                    "{}{}",
+                    "Could not find specified directory: ".red(),
+                    x.red()
+                ),
             };
         }
     }
